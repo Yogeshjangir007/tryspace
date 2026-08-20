@@ -1,0 +1,21 @@
+# Node dependencies
+frontend/node_modules/
+node_modules/
+
+# Production build
+frontend/dist/
+dist/
+
+# Python cache & venv
+__pycache__/
+*.pyc
+backend/__pycache__/
+.venv/
+venv/
+env/
+
+# Environment files
+.env
+.env.local
+.DS_Store
+Thumbs.db
