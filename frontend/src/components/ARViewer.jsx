@@ -41,7 +41,10 @@ export default function ARViewer({
   const modelSrc = product?.modelUrl || product?.localModelUrl;
 
   // URLs (mode=ar_preferred loads 3D preview and initializes AR camera smoothly without black screen)
-  const webAppUrl = `http://${networkIp}:${networkPort}/#${product.id}`;
+  const isTunnelOrDomain = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+  const webAppUrl = isTunnelOrDomain 
+    ? `${window.location.origin}/#${product.id}` 
+    : `http://${networkIp}:${networkPort}/#${product.id}`;
   const directGoogleARUrl = `https://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(product.modelUrl)}&mode=ar_preferred&title=${encodeURIComponent(product.name)}&resizable=true`;
   const sceneViewerIntent = `intent://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(product.modelUrl)}&mode=ar_preferred&title=${encodeURIComponent(product.name)}&resizable=true#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;end;`;
 

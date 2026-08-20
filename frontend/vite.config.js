@@ -15,6 +15,7 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true, // Listen on 0.0.0.0 for LAN testing
+    allowedHosts: true, // Allow mobile browsers and tunnel hosts in Vite 6
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',
