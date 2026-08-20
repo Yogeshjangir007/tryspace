@@ -19,3 +19,6 @@ env/
 .env.local
 .DS_Store
 Thumbs.db
+
+*.zip
+tryspace.zip

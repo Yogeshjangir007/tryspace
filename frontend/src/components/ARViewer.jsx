@@ -34,7 +34,7 @@ export default function ARViewer({
   // Network IP configuration for QR code
   const [networkIp, setNetworkIp] = useState('10.209.186.161');
   const [networkPort, setNetworkPort] = useState('5173');
-  const [qrType, setQrType] = useState('web'); // 'web' | 'direct-sceneviewer'
+  const [qrType, setQrType] = useState('direct-sceneviewer'); // 'direct-sceneviewer' (Any network/4G) | 'web' (Local Wi-Fi)
   const [isEditingIp, setIsEditingIp] = useState(false);
 
   // Model source (Absolute HTTPS required for Google Scene Viewer)
@@ -377,35 +377,22 @@ export default function ARViewer({
             </div>
 
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: '1.4' }}>
-              Scan with your phone's camera or Google Lens to view in 3D AR.
+              {qrType === 'direct-sceneviewer' ? (
+                <span><strong>No same Wi-Fi needed!</strong> Scan with your phone camera or Google Lens to download directly from the cloud and open in AR.</span>
+              ) : (
+                <span>Opens the interactive TrySpace website on your phone. (Requires same Wi-Fi).</span>
+              )}
             </p>
 
             {/* QR Mode Switcher Tabs */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.4rem', marginBottom: '1rem' }}>
-              <button 
-                onClick={() => setQrType('web')}
-                style={{
-                  background: qrType === 'web' ? '#111827' : '#f3efe8',
-                  color: qrType === 'web' ? 'white' : '#4b5563',
-                  border: 'none',
-                  padding: '0.35rem 0.75rem',
-                  borderRadius: 'var(--radius-full)',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                <Wifi size={12} style={{ display: 'inline', marginRight: '4px' }} />
-                Wi-Fi Web Link (Universal)
-              </button>
-
               <button 
                 onClick={() => setQrType('direct-sceneviewer')}
                 style={{
                   background: qrType === 'direct-sceneviewer' ? '#111827' : '#f3efe8',
                   color: qrType === 'direct-sceneviewer' ? 'white' : '#4b5563',
                   border: 'none',
-                  padding: '0.35rem 0.75rem',
+                  padding: '0.4rem 0.85rem',
                   borderRadius: 'var(--radius-full)',
                   fontSize: '0.75rem',
                   fontWeight: 700,
@@ -413,7 +400,24 @@ export default function ARViewer({
                 }}
               >
                 <Sparkles size={12} style={{ display: 'inline', marginRight: '4px' }} />
-                Direct Google AR Link
+                Cloud AR (Any Network / 4G / 5G)
+              </button>
+
+              <button 
+                onClick={() => setQrType('web')}
+                style={{
+                  background: qrType === 'web' ? '#111827' : '#f3efe8',
+                  color: qrType === 'web' ? 'white' : '#4b5563',
+                  border: 'none',
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                <Wifi size={12} style={{ display: 'inline', marginRight: '4px' }} />
+                Full Web App (Same Wi-Fi)
               </button>
             </div>
 
