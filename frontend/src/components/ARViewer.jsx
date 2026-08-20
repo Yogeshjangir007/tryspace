@@ -40,10 +40,10 @@ export default function ARViewer({
   // Model source (Absolute HTTPS required for Google Scene Viewer)
   const modelSrc = product?.modelUrl || product?.localModelUrl;
 
-  // URLs
+  // URLs (mode=ar_preferred loads 3D preview and initializes AR camera smoothly without black screen)
   const webAppUrl = `http://${networkIp}:${networkPort}/#${product.id}`;
-  const directGoogleARUrl = `https://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(product.modelUrl)}&mode=ar_only&title=${encodeURIComponent(product.name)}&resizable=true`;
-  const sceneViewerIntent = `intent://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(product.modelUrl)}&mode=ar_only&title=${encodeURIComponent(product.name)}&resizable=true#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;end;`;
+  const directGoogleARUrl = `https://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(product.modelUrl)}&mode=ar_preferred&title=${encodeURIComponent(product.name)}&resizable=true`;
+  const sceneViewerIntent = `intent://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(product.modelUrl)}&mode=ar_preferred&title=${encodeURIComponent(product.name)}&resizable=true#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;end;`;
 
   const activeQrValue = qrType === 'web' ? webAppUrl : directGoogleARUrl;
 
