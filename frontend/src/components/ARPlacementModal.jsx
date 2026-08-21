@@ -12,17 +12,25 @@ import {
   Sparkles, 
   Smartphone, 
   Image as ImageIcon,
-  Check,
-  Download,
-  AlertCircle,
-  Move,
+  Check, 
+  Download, 
+  AlertCircle, 
+  Move, 
   FlipHorizontal,
   Box,
-  Eye
+  Eye,
+  Layers,
+  Palette,
+  Video,
+  Loader2
 } from 'lucide-react';
 
 const ROOM_PRESETS = [
-  { id: 'camera', name: 'Live Camera (Your Room)', isCamera: true },
+  { 
+    id: 'camera', 
+    name: 'Live Room Camera', 
+    isCamera: true 
+  },
   { 
     id: 'living-modern', 
     name: 'Modern Living Room', 
@@ -45,14 +53,14 @@ const ROOM_PRESETS = [
   }
 ];
 
-export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchGoogleAR }) {
+export default function ARPlacementModal({ product, onClose, onOpenQR }) {
   const videoRef = useRef(null);
   const modelViewerRef = useRef(null);
   const streamRef = useRef(null);
-  const dragContainerRef = useRef(null);
 
-  const [activePreset, setActivePreset] = useState(ROOM_PRESETS[0]);
+  const [activePreset, setActivePreset] = useState(ROOM_PRESETS[0]); // Default to live camera
   const [cameraError, setCameraError] = useState(null);
+  const [cameraLoading, setCameraLoading] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [facingMode, setFacingMode] = useState('environment'); // 'environment' | 'user'
 
@@ -61,29 +69,32 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
   const [rotationDeg, setRotationDeg] = useState(0);
   const [modelHeightOffset, setModelHeightOffset] = useState(0);
   const [posX, setPosX] = useState(0);
-  const [posY, setPosY] = useState(40); // default slightly lower on floor
+  const [posY, setPosY] = useState(30);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
+  // Selected Color / Material
+  const [selectedColor, setSelectedColor] = useState(product?.colors?.[0] || null);
+
   // UI state
   const [snapshotTaken, setSnapshotTaken] = useState(false);
-  const [nativeArSupported, setNativeArSupported] = useState(false);
-  const [showHelperBanner, setShowHelperBanner] = useState(true);
 
   const modelSrc = product?.localModelUrl || product?.modelUrl;
 
   // Initialize camera stream
   const startCamera = async (facing = facingMode) => {
     setCameraError(null);
+    setCameraLoading(true);
     stopCamera();
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Camera API not supported or insecure HTTP context.");
+        throw new Error("Camera API not supported or requires secure HTTPS context.");
       }
 
       let stream;
       try {
+        // Try ideal back camera (environment) first
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: facing },
@@ -92,22 +103,44 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
           },
           audio: false
         });
-      } catch (err) {
-        // Fallback to basic video constraint
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      } catch (err1) {
+        try {
+          // Fallback to basic facingMode
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: facing },
+            audio: false
+          });
+        } catch (err2) {
+          // Fallback to any available video stream
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
       }
 
       streamRef.current = stream;
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        videoRef.current.onloadedmetadata = () => {
+          if (videoRef.current) {
+            videoRef.current.play().catch((e) => console.warn("Video play onloadedmetadata:", e));
+          }
+        };
+        try {
+          await videoRef.current.play();
+        } catch (e) {
+          console.warn("Direct video play:", e);
+        }
       }
+
       setCameraActive(true);
+      setActivePreset(ROOM_PRESETS[0]);
     } catch (err) {
-      console.warn("Camera access failed:", err);
-      setCameraError("In-browser camera over local Wi-Fi HTTP is blocked by mobile browsers. Tap 'Google AR Camera' above to launch native ARCore floor placement!");
+      console.warn("Camera start failed:", err);
+      setCameraError("Camera permission needed or camera unavailable. Switched to Room Environment.");
       setCameraActive(false);
-      setActivePreset(ROOM_PRESETS[1]); // Fallback to modern room preset
+      setActivePreset(ROOM_PRESETS[1]); // Fallback to Modern Living Room image
+    } finally {
+      setCameraLoading(false);
     }
   };
 
@@ -115,6 +148,9 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
     setCameraActive(false);
   };
@@ -127,6 +163,7 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
     }
   };
 
+  // Start camera on mount if activePreset is camera
   useEffect(() => {
     if (activePreset.isCamera) {
       startCamera(facingMode);
@@ -136,29 +173,33 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
     return () => {
       stopCamera();
     };
-  }, [activePreset]);
+  }, [activePreset.id]);
 
-  // Check if native WebXR AR is supported
+  // Ensure video element always has stream assigned
   useEffect(() => {
-    const checkNativeAR = async () => {
-      if (navigator.xr && navigator.xr.isSessionSupported) {
-        try {
-          const supported = await navigator.xr.isSessionSupported('immersive-ar');
-          setNativeArSupported(supported);
-        } catch (e) {
-          setNativeArSupported(false);
-        }
+    if (videoRef.current && streamRef.current && activePreset.isCamera) {
+      if (videoRef.current.srcObject !== streamRef.current) {
+        videoRef.current.srcObject = streamRef.current;
+        videoRef.current.play().catch(console.warn);
       }
-    };
-    checkNativeAR();
-  }, []);
+    }
+  }, [activePreset.isCamera, cameraActive]);
 
-  const handleLaunchNativeAR = () => {
-    if (modelViewerRef.current) {
+  // Apply material color dynamically to model-viewer
+  const handleColorChange = (color) => {
+    setSelectedColor(color);
+    if (modelViewerRef.current && modelViewerRef.current.model) {
       try {
-        modelViewerRef.current.activateAR();
+        const material = modelViewerRef.current.model.materials[0];
+        if (material && material.pbrMetallicRoughness) {
+          const hex = color.hex.replace('#', '');
+          const r = parseInt(hex.substring(0, 2), 16) / 255;
+          const g = parseInt(hex.substring(2, 4), 16) / 255;
+          const b = parseInt(hex.substring(4, 6), 16) / 255;
+          material.pbrMetallicRoughness.setBaseColorFactor([r, g, b, 1.0]);
+        }
       } catch (e) {
-        console.warn("Native AR activate error:", e);
+        console.warn("Material color change error:", e);
       }
     }
   };
@@ -187,7 +228,6 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
     setSnapshotTaken(true);
     setTimeout(() => setSnapshotTaken(false), 2500);
 
-    // Create download link for placement record
     try {
       const canvas = document.createElement('canvas');
       canvas.width = 1280;
@@ -197,15 +237,15 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 32px sans-serif';
-      ctx.fillText(`ARoom AR Placement — ${product.name}`, 40, 70);
+      ctx.fillText(`TRYSPACE AR Placement — ${product.name}`, 40, 70);
       ctx.font = '20px sans-serif';
       ctx.fillStyle = '#94a3b8';
-      ctx.fillText(`Dimensions: ${product.dimensions?.widthCm || 0}W x ${product.dimensions?.depthCm || 0}D x ${product.dimensions?.heightCm || 0}H cm | Scale: ${(scale * 100).toFixed(0)}%`, 40, 110);
+      ctx.fillText(`Dimensions: ${product.dimensions?.widthCm || 0}W × ${product.dimensions?.depthCm || 0}D × ${product.dimensions?.heightCm || 0}H cm | Scale: ${(scale * 100).toFixed(0)}%`, 40, 110);
       
       const link = document.createElement('a');
-      link.download = `ar-placement-${product.id}.png`;
+      link.download = `tryspace-ar-${product.id}.png`;
       link.href = canvas.toDataURL();
-      // Optional: link.click();
+      link.click();
     } catch (e) {
       console.log("Snapshot export helper:", e);
     }
@@ -216,7 +256,7 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
     setRotationDeg(0);
     setModelHeightOffset(0);
     setPosX(0);
-    setPosY(40);
+    setPosY(30);
   };
 
   return (
@@ -227,30 +267,71 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
       onTouchMove={handlePointerMove}
       onTouchEnd={handlePointerUp}
     >
-      {/* Background Viewport: Live Camera Feed OR High-Res Room Preset */}
+      {/* Background Viewport: Both Video and Image are kept in DOM to prevent ref losing */}
       <div className="ar-room-viewport">
-        {activePreset.isCamera ? (
-          <video 
-            ref={videoRef} 
-            className="ar-camera-feed" 
-            autoPlay 
-            playsInline 
-            muted 
-          />
-        ) : (
-          <img 
-            src={activePreset.url} 
-            alt={activePreset.name} 
-            className="ar-room-bg-image" 
-          />
+        {/* Live Camera Video Element */}
+        <video 
+          ref={videoRef} 
+          className="ar-camera-feed" 
+          autoPlay 
+          playsInline 
+          muted 
+          webkit-playsinline="true"
+          x5-playsinline="true"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            zIndex: activePreset.isCamera ? 2 : 0,
+            opacity: activePreset.isCamera && cameraActive ? 1 : 0,
+            transition: 'opacity 0.3s ease'
+          }}
+        />
+
+        {/* Photorealistic Fallback Room Background Image */}
+        <img 
+          src={activePreset.url || ROOM_PRESETS[1].url} 
+          alt="Room Environment" 
+          className="ar-room-bg-image" 
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            zIndex: 1,
+            opacity: !activePreset.isCamera || !cameraActive ? 1 : 0,
+            transition: 'opacity 0.3s ease'
+          }}
+        />
+
+        {/* Camera Starting Loader Overlay */}
+        {cameraLoading && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0, 0, 0, 0.65)',
+            zIndex: 15,
+            gap: '0.75rem',
+            color: 'white'
+          }}>
+            <Loader2 size={36} className="spin-slow" />
+            <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Starting Camera Feed...</span>
+          </div>
         )}
 
-        {/* Dynamic Floor Grid & Shadow beneath furniture */}
+        {/* Floor Reticle Target Anchor */}
         <div 
           className="ar-floor-reticle"
           style={{
-            transform: `translate(calc(-50% + ${posX}px), calc(-50% + ${posY + 160 + modelHeightOffset}px)) scale(${scale})`,
-            transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+            transform: `translate(calc(-50% + ${posX}px), calc(-50% + ${posY + 140 + modelHeightOffset}px)) scale(${scale})`,
+            transition: isDragging ? 'none' : 'transform 0.08s ease-out'
           }}
         >
           <div className="reticle-ring"></div>
@@ -263,12 +344,12 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
 
         {/* 3D Model Placement Layer */}
         <div 
-          ref={dragContainerRef}
           className="ar-model-overlay-container"
           style={{
             transform: `translate(${posX}px, ${posY + modelHeightOffset}px) scale(${scale})`,
             cursor: isDragging ? 'grabbing' : 'grab',
-            transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+            transition: isDragging ? 'none' : 'transform 0.08s ease-out',
+            zIndex: 20
           }}
           onMouseDown={handlePointerDown}
           onTouchStart={handlePointerDown}
@@ -291,7 +372,7 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
             touch-action="pan-y"
             camera-orbit={`${rotationDeg}deg 75deg 105%`}
             style={{
-              width: '80vw',
+              width: '85vw',
               height: '65vh',
               maxWidth: '850px',
               maxHeight: '650px',
@@ -299,7 +380,7 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
               '--poster-color': 'transparent'
             }}
           >
-            {/* Real Dimensions Annotation */}
+            {/* Dimensions Hotspot Badge */}
             {product.dimensions && (
               <div 
                 slot="hotspot-dimension"
@@ -308,11 +389,14 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
                 className="dimension-badge"
                 style={{
                   position: 'absolute',
-                  top: '12%',
+                  top: '10%',
                   left: '50%',
                   transform: 'translateX(-50%)',
-                  zIndex: 20,
-                  whiteSpace: 'nowrap'
+                  zIndex: 25,
+                  whiteSpace: 'nowrap',
+                  background: 'rgba(17, 24, 39, 0.9)',
+                  color: '#ffffff',
+                  border: '1px solid rgba(255, 255, 255, 0.2)'
                 }}
               >
                 📐 True Scale: {product.dimensions.widthCm}W × {product.dimensions.depthCm}D × {product.dimensions.heightCm}H cm
@@ -333,48 +417,40 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          {onLaunchGoogleAR && (
-            <button 
-              className="card-btn"
-              onClick={onLaunchGoogleAR}
-              style={{ background: 'var(--accent-gradient)', padding: '0.4rem 0.85rem', fontSize: '0.78rem' }}
-              title="Launch Google AR Scene Viewer (ARCore Floor Camera)"
-            >
-              <Camera size={14} />
-              <span>Google AR Camera</span>
-            </button>
-          )}
-
+          {/* Flip Camera Button */}
           {activePreset.isCamera && (
             <button 
               className="viewer-ctrl-btn" 
               onClick={toggleCameraFacing}
-              title="Flip Front/Back Camera"
+              title="Flip Front / Rear Camera"
               id="btn-flip-camera"
             >
               <FlipHorizontal size={16} />
             </button>
           )}
 
-          {nativeArSupported && (
+          {/* Turn On/Off Live Camera Toggle */}
+          {!cameraActive ? (
             <button 
-              className="card-btn" 
-              onClick={handleLaunchNativeAR}
-              style={{ background: 'var(--accent-gradient)', padding: '0.45rem 0.9rem' }}
+              className="card-btn"
+              onClick={() => startCamera(facingMode)}
+              style={{ background: 'var(--accent-rose)', padding: '0.4rem 0.85rem', fontSize: '0.78rem' }}
+              title="Activate Phone Camera"
             >
-              <Smartphone size={15} />
-              <span>Native WebXR</span>
+              <Camera size={14} />
+              <span>Enable Camera</span>
+            </button>
+          ) : (
+            <button 
+              className="card-btn"
+              onClick={() => setActivePreset(ROOM_PRESETS[1])}
+              style={{ background: 'rgba(255,255,255,0.1)', padding: '0.4rem 0.85rem', fontSize: '0.78rem' }}
+              title="Use Room Preset"
+            >
+              <ImageIcon size={14} />
+              <span>Room Preset</span>
             </button>
           )}
-
-          <button 
-            className="viewer-ctrl-btn" 
-            onClick={onOpenQR}
-            title="Open on Mobile Phone"
-            id="ar-modal-qr-btn"
-          >
-            <Smartphone size={16} color="#38bdf8" />
-          </button>
 
           <button 
             className="modal-close-btn" 
@@ -388,7 +464,7 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
         </div>
       </div>
 
-      {/* Camera Alert / Error Toast if any */}
+      {/* Camera Alert / Error Toast */}
       {cameraError && (
         <div className="camera-alert-pill">
           <AlertCircle size={15} />
@@ -396,20 +472,20 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
         </div>
       )}
 
-      {/* Snapshot Toast notification */}
+      {/* Snapshot Toast */}
       {snapshotTaken && (
         <div className="snapshot-toast">
           <Check size={16} color="#10b981" />
-          <span>Room placement photo captured!</span>
+          <span>Room placement photo saved!</span>
         </div>
       )}
 
       {/* Bottom Floating Control Deck */}
       <div className="ar-room-bottom-panel glass-panel">
-        {/* Room Environment / Camera Switcher */}
+        {/* Environment Presets Bar */}
         <div className="room-preset-bar">
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-            Room Space:
+            Background:
           </span>
           <div className="preset-scroll-row">
             {ROOM_PRESETS.map((preset) => (
@@ -417,15 +493,42 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
                 key={preset.id}
                 className={`pill-btn ${activePreset.id === preset.id ? 'active' : ''}`}
                 style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                onClick={() => setActivePreset(preset)}
+                onClick={() => {
+                  if (preset.isCamera) {
+                    startCamera(facingMode);
+                  } else {
+                    setActivePreset(preset);
+                  }
+                }}
                 id={`preset-${preset.id}`}
               >
-                {preset.isCamera ? <Camera size={13} /> : <ImageIcon size={13} />}
+                {preset.isCamera ? <Camera size={13} color="#10b981" /> : <ImageIcon size={13} />}
                 <span>{preset.name}</span>
               </button>
             ))}
           </div>
         </div>
+
+        {/* Color finish swatches if available */}
+        {product.colors && product.colors.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+              Color Finish:
+            </span>
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
+              {product.colors.map((c) => (
+                <button
+                  key={c.name}
+                  className={`color-btn ${selectedColor?.name === c.name ? 'active' : ''}`}
+                  style={{ backgroundColor: c.hex, width: '22px', height: '22px' }}
+                  onClick={() => handleColorChange(c)}
+                  title={c.name}
+                />
+              ))}
+            </div>
+            <span style={{ fontSize: '0.75rem', color: '#c7d2fe', fontWeight: 600 }}>{selectedColor?.name}</span>
+          </div>
+        )}
 
         {/* Sliders and Quick Placement Controls */}
         <div className="placement-controls-row">
@@ -440,7 +543,7 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
                 onClick={() => setScale(1.0)} 
                 style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: '0.7rem', cursor: 'pointer', fontWeight: 600 }}
               >
-                1:1 Scale
+                1:1 True Scale
               </button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -477,7 +580,7 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span className="ctrl-label">
                 <RotateCw size={13} />
-                <span>Rotate Angle: {rotationDeg}°</span>
+                <span>Rotation: {rotationDeg}°</span>
               </span>
               <div style={{ display: 'flex', gap: '0.35rem' }}>
                 <button 
@@ -506,7 +609,7 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
           </div>
 
           {/* Elevation Height */}
-          <div className="ctrl-group" style={{ minWidth: '130px' }}>
+          <div className="ctrl-group" style={{ minWidth: '120px' }}>
             <span className="ctrl-label">
               <Sliders size={13} />
               <span>Elevation: {modelHeightOffset}px</span>
@@ -537,8 +640,8 @@ export default function ARPlacementModal({ product, onClose, onOpenQR, onLaunchG
             <button 
               className="card-btn" 
               onClick={handleCaptureSnapshot}
-              style={{ fontSize: '0.78rem', padding: '0.45rem 0.85rem' }}
-              title="Capture Photo"
+              style={{ fontSize: '0.78rem', padding: '0.45rem 0.85rem', background: 'var(--accent-rose)' }}
+              title="Capture and Save Photo"
               id="btn-capture-snapshot"
             >
               <Download size={13} />

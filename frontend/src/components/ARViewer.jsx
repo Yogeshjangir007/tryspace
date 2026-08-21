@@ -42,9 +42,10 @@ export default function ARViewer({
 
   // URLs (mode=ar_preferred loads 3D preview and initializes AR camera smoothly without black screen)
   const isTunnelOrDomain = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+  const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
   const webAppUrl = isTunnelOrDomain 
     ? `${window.location.origin}/#${product.id}` 
-    : `http://${networkIp}:${networkPort}/#${product.id}`;
+    : `${protocol}//${networkIp}:${networkPort}/#${product.id}`;
   const directGoogleARUrl = `https://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(product.modelUrl)}&mode=ar_preferred&title=${encodeURIComponent(product.name)}&resizable=true`;
   const sceneViewerIntent = `intent://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(product.modelUrl)}&mode=ar_preferred&title=${encodeURIComponent(product.name)}&resizable=true#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;end;`;
 
@@ -229,11 +230,11 @@ export default function ARViewer({
           {/* Google model-viewer Web Component */}
           <model-viewer
             ref={modelViewerRef}
-            src={modelSrc}
+            src={product.modelUrl}
             poster={product.thumbnail}
             alt={`3D model of ${product.name}`}
             ar
-            ar-modes="scene-viewer webxr quick-look"
+            ar-modes="scene-viewer quick-look webxr"
             ar-scale="auto"
             ar-placement="floor"
             camera-controls
@@ -250,7 +251,26 @@ export default function ARViewer({
             touch-action="pan-y"
             camera-target="auto auto auto"
             style={{ width: '100%', height: '100%' }}
-          />
+          >
+            <button 
+              slot="ar-button"
+              id="model-viewer-native-ar-btn"
+              className="launch-ar-btn"
+              style={{
+                position: 'absolute',
+                bottom: '16px',
+                right: '16px',
+                zIndex: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
+              }}
+            >
+              <Camera size={18} />
+              <span>Launch Google AR Camera</span>
+            </button>
+          </model-viewer>
 
           {/* Floating Controls Bar */}
           <div className="viewer-overlay-bottom">

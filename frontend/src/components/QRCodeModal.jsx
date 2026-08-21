@@ -27,7 +27,8 @@ export default function QRCodeModal({ product, onClose }) {
   useEffect(() => {
     if (qrMode === 'web') {
       // Normal web app link accessible over LAN
-      const url = `http://${networkIp}:${customPort}/#${product.id}`;
+      const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
+      const url = `${protocol}//${networkIp}:${customPort}/#${product.id}`;
       setTargetUrl(url);
     } else {
       // Standard Google Scene Viewer link for instant 1-tap Android camera AR
