@@ -32,7 +32,12 @@ export default function ARViewer({
   const [copied, setCopied] = useState(false);
   
   // Network IP configuration for QR code
-  const [networkIp, setNetworkIp] = useState('10.209.186.161');
+  const [networkIp, setNetworkIp] = useState(() => {
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return window.location.hostname;
+    }
+    return '';
+  });
   const [networkPort, setNetworkPort] = useState('5173');
   const [qrType, setQrType] = useState('direct-sceneviewer'); // 'direct-sceneviewer' (Any network/4G) | 'web' (Local Wi-Fi)
   const [isEditingIp, setIsEditingIp] = useState(false);

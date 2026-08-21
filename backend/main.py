@@ -66,17 +66,28 @@ class Product(BaseModel):
 
 
 def get_local_ip() -> str:
+    # Method 1: Connect UDP socket to public DNS to find active interface IP (works on macOS, Linux, Windows)
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0.5)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        if ip and not ip.startswith("127."):
+            return ip
+    except Exception:
+        pass
+
+    # Method 2: Fallback to gethostbyname
     try:
         hostname = socket.gethostname()
         ip = socket.gethostbyname(hostname)
-        if ip.startswith("127."):
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
-            s.close()
-        return ip
+        if ip and not ip.startswith("127."):
+            return ip
     except Exception:
-        return "localhost"
+        pass
+
+    return "127.0.0.1"
 
 
 def load_products_data() -> List[dict]:
